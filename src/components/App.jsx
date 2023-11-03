@@ -1,4 +1,4 @@
-import React, { Component } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { Searchbar } from 'components/Searchbar/Searchbar';
 import { ImageGallery } from './ImageGallery/ImageGallery';
@@ -7,107 +7,77 @@ import { Loader } from './Loader/Loader';
 import { Modal } from './Modal/Modal';
 import { DataImages } from './helpers/helpers';
 
-export class App extends Component {
-  state = {
-    images: [],
-    isLoading: false,
-    isOpenModal: false,
-    dataModal: null,
-    value: '',
-    page: 1,
-    error: null,
-  };
+export const App = () => {
+  const [images, setImages] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isOpenModal, setIsOpenModal] = useState(false);
+  const [dataModal, setDataModal] = useState(null);
+  const [value, setValue] = useState('');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
 
-  getDataImages = async () => {
-    try {
-      this.setState({
-        isLoading: true,
-      });
+  useEffect(() => {
+    const getDataImages = async () => {
+      if (!value) return;
+      try {
+        setIsLoading(true);
+        const response = await DataImages(value, page);
 
-      const response = await DataImages(this.state.value, this.state.page);
+        const { hits, totalHits } = response.data;
+        if (hits.length < 1) {
+          alert('Sorry, nothing was found for your request...');
+          return;
+        }
 
-      // console.log(response);
-      const { hits, totalHits } = response.data;
-      if (hits.length < 1) {
-        alert('Sorry, nothing was found for your request...');
-        return;
+        setImages(prevState => [...prevState, ...hits]);
+
+        setTotal(totalHits);
+      } catch (error) {
+        alert(`${error.message}`);
+      } finally {
+        setIsLoading(false);
       }
-      this.setState(prevState => {
-        return {
-          images: [...prevState.images, ...hits],
-          totalHits: totalHits,
-        };
-      });
-    } catch (error) {
-      this.setState({ error: error.message });
-    } finally {
-      this.setState({
-        isLoading: false,
-      });
-    }
-  };
+    };
 
-  componentDidUpdate(_, prevState) {
-    if (
-      prevState.value !== this.state.value ||
-      prevState.page !== this.state.page
-    ) {
-      this.getDataImages();
-    }
-  }
+    getDataImages();
+  }, [value, page]);
 
-  onHandleClickSubmit = value => {
+  const onHandleClickSubmit = value => {
     if (value.trim() === '') {
       alert('Invalid value entered');
       return;
     }
 
-    this.setState({ value, images: [], page: 1 });
+    setValue(value);
+    setImages([]);
+    setPage(1);
   };
 
-  onHandleClickLoadMore = e => {
-    this.setState(prevState => {
-      return {
-        page: prevState.page + 1,
-      };
-    });
+  const onHandleClickLoadMore = e => {
+    setPage(prevState => prevState + 1);
   };
 
-  openModal = dataImage => {
-    this.setState({
-      isOpenModal: true,
-      dataModal: dataImage,
-    });
+  const openModal = dataImage => {
+    setIsOpenModal(true);
+    setDataModal(dataImage);
   };
 
-  closeModal = () => {
-    this.setState({
-      isOpenModal: false,
-      dataModal: null,
-    });
+  const closeModal = () => {
+    setIsOpenModal(false);
+    setDataModal(null);
   };
 
-  render() {
-    return (
-      <div>
-        <Searchbar onSubmit={this.onHandleClickSubmit} />
-        {this.state.images.length !== 0 && (
-          <ImageGallery
-            arrayData={this.state.images}
-            openModal={this.openModal}
-          />
-        )}
-        {this.state.page < Math.ceil(this.state.totalHits / 12) && (
-          <Button onClick={this.onHandleClickLoadMore} />
-        )}
-        <Loader isLoading={this.state.isLoading} />
-        {this.state.isOpenModal && (
-          <Modal
-            dataModal={this.state.dataModal}
-            closeModal={this.closeModal}
-          />
-        )}
-      </div>
-    );
-  }
-}
+  return (
+    <div>
+      <Searchbar onSubmit={onHandleClickSubmit} />
+      {images.length !== 0 && (
+        <ImageGallery arrayData={images} openModal={openModal} />
+      )}
+      {page < Math.ceil(total / 12) && (
+        <Button onClick={onHandleClickLoadMore} />
+      )}
+      <Loader isLoading={isLoading} />
+      {isOpenModal && <Modal dataModal={dataModal} closeModal={closeModal} />}
+    </div>
+  );
+};
